@@ -603,9 +603,9 @@ function caixaTabHTML(){
     <div class="tab-summary-row"><span>Mensalistas pagos (${monthLabel()})</span><b>${fmtMoney(mensalTotal)}</b></div>
     <div class="tab-summary-row"><span>Avulsos deste mês</span><b style="color:var(--avulso)">${fmtMoney(avulsoTotal)}</b></div>
     <div class="tab-summary-row"><span>Custo do campo</span><b>${fmtMoney(config.courtCost||0)}</b></div>
-    <div class="tab-summary-row"><span>Sobra do mês</span><b style="color:${sobraDoMes>=0?'var(--led-green)':'var(--red-card)'}">${fmtMoney(sobraDoMes)}</b></div>
+    <div class="tab-summary-row"><span>${sobraDoMes >= 0 ? 'Sobra do mês' : 'Falta cobrir do campo'}</span><b style="color:${sobraDoMes>=0?'var(--led-green)':'var(--red-card)'}">${fmtMoney(Math.abs(sobraDoMes))}</b></div>
   </div>
-  <p style="margin:0 14px 14px;font-size:11.5px;color:#7C8C7F;line-height:1.4;">Mensalistas e avulsos entram juntos na mesma conta pra cobrir o custo do campo. A sobra do mês é só informativa — ela não entra sozinha no caixa; se quiser guardá-la, lance manualmente em "Outra entrada" abaixo.</p>
+  <p style="margin:0 14px 14px;font-size:11.5px;color:#7C8C7F;line-height:1.4;">Mensalistas e avulsos entram juntos na mesma conta pra cobrir o custo do campo — cada avulso que entra diminui sozinho o quanto ainda falta cobrir, sem mudar o valor fixo de cada mensalista. Depois de cobrir o campo, o que sobrar fica só informativo aqui; se quiser guardar a sobra no caixa, lance manualmente em "Outra entrada" abaixo.</p>
   ${organizerMode ? `
   <div class="section-title" style="margin:0 14px 8px;"><span>Registrar movimentação</span></div>
   <div class="caixa-actions">
