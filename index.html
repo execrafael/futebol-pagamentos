@@ -308,7 +308,6 @@ async function loadAll(){
     availableMonths = Array.from(new Set([viewMonthKey, ...monthsFromKeys])).sort().reverse();
   }catch(e){ availableMonths = [viewMonthKey]; hadLoadError = true; }
   if(hadLoadError) showToast('Não consegui conectar ao banco de dados agora. Verifique sua internet — os dados podem estar desatualizados.');
-  await syncAutoSobraAndSave();
   render();
 }
 
@@ -334,46 +333,12 @@ function mensalistasTotalMes(){
   return titulares * config.monthlyValue;
 }
 function avulsosTotalMes(){ return avulsos.reduce((s,a)=>s+a.valor,0); }
+// Mensalistas e avulsos entram juntos na mesma conta pra cobrir o custo do campo.
 function arrecadadoMes(){ return mensalistasTotalMes() + avulsosTotalMes(); }
-// Só o valor dos mensalistas abate o custo do campo. Avulso nunca entra nessa conta —
-// o valor do avulso é sempre 100% caixa, do início ao fim.
-function sobraMensalistasMes(){ return mensalistasTotalMes() - (config.courtCost || 0); }
-
-// Mantém dois lançamentos automáticos deste mês sincronizados no caixa:
-// 1) a sobra dos mensalistas depois de cobrir o custo do campo
-// 2) o total dos avulsos (sempre inteiro, nunca usado pra cobrir o campo)
-// Nenhum dos dois mexe no cálculo do que cada mensalista paga no mês seguinte.
-function syncAutoSobra(){
-  if(!config || !isCurrentMonth()) return false;
-  let changed = false;
-
-  const idM = 'auto-sobra-mensal-' + todayKey();
-  const idxM = caixa.entries.findIndex(e => e.id === idM);
-  const sobraMensal = sobraMensalistasMes();
-  if(sobraMensal > 0){
-    const v = round2(sobraMensal);
-    if(idxM >= 0){ if(caixa.entries[idxM].valor !== v){ caixa.entries[idxM].valor = v; changed = true; } }
-    else { caixa.entries.push({ id: idM, type:'entrada', desc:`Sobra dos mensalistas de ${monthLabel()}`, valor: v, date: Date.now(), auto:true }); changed = true; }
-  } else if(idxM >= 0){
-    caixa.entries.splice(idxM, 1);
-    changed = true;
-  }
-
-  const idA = 'auto-avulsos-' + todayKey();
-  const idxA = caixa.entries.findIndex(e => e.id === idA);
-  const avulsosTotal = avulsosTotalMes();
-  if(avulsosTotal > 0){
-    const v = round2(avulsosTotal);
-    if(idxA >= 0){ if(caixa.entries[idxA].valor !== v){ caixa.entries[idxA].valor = v; changed = true; } }
-    else { caixa.entries.push({ id: idA, type:'entrada', desc:`Avulsos de ${monthLabel()}`, valor: v, date: Date.now(), auto:true }); changed = true; }
-  } else if(idxA >= 0){
-    caixa.entries.splice(idxA, 1);
-    changed = true;
-  }
-
-  return changed;
-}
-async function syncAutoSobraAndSave(){ if(syncAutoSobra()) await saveCaixa(); }
+// O que sobra depois de cobrir o custo do campo com mensalistas + avulsos juntos.
+// Isso é só informativo — não lança nada sozinho no caixa; quem decide se e quando
+// colocar essa sobra no caixa é o organizador, manualmente (botão "Outra entrada").
+function sobraMes(){ return arrecadadoMes() - (config.courtCost || 0); }
 
 function render(){
   const app = document.getElementById('app');
@@ -613,7 +578,7 @@ function caixaTabHTML(){
   const balance = caixaBalance();
   const mensalTotal = mensalistasTotalMes();
   const avulsoTotal = avulsosTotalMes();
-  const sobraMensal = sobraMensalistasMes();
+  const sobraDoMes = sobraMes();
   const entries = [...caixa.entries].sort((a,b)=>b.date-a.date);
   const ledgerHTML = entries.length === 0
     ? `<div class="ledger-empty">Nenhuma movimentação registrada ainda.</div>`
@@ -636,11 +601,11 @@ function caixaTabHTML(){
   </div>
   <div class="tab-summary">
     <div class="tab-summary-row"><span>Mensalistas pagos (${monthLabel()})</span><b>${fmtMoney(mensalTotal)}</b></div>
+    <div class="tab-summary-row"><span>Avulsos deste mês</span><b style="color:var(--avulso)">${fmtMoney(avulsoTotal)}</b></div>
     <div class="tab-summary-row"><span>Custo do campo</span><b>${fmtMoney(config.courtCost||0)}</b></div>
-    <div class="tab-summary-row"><span>Sobra dos mensalistas${sobraMensal > 0 ? ' (já no caixa)' : ''}</span><b style="color:${sobraMensal>=0?'var(--led-green)':'var(--red-card)'}">${fmtMoney(sobraMensal)}</b></div>
-    <div class="tab-summary-row"><span>Avulsos deste mês${avulsoTotal > 0 ? ' (já no caixa)' : ''}</span><b style="color:var(--avulso)">${fmtMoney(avulsoTotal)}</b></div>
+    <div class="tab-summary-row"><span>Sobra do mês</span><b style="color:${sobraDoMes>=0?'var(--led-green)':'var(--red-card)'}">${fmtMoney(sobraDoMes)}</b></div>
   </div>
-  <p style="margin:0 14px 14px;font-size:11.5px;color:#7C8C7F;line-height:1.4;">Só o valor dos mensalistas é usado pra cobrir o custo do campo — a sobra depois disso vai sozinha pro caixa. O valor dos avulsos nunca cobre o campo: ele vai inteiro e direto pro caixa. Esse dinheiro é pra manutenção (bola, coletes, sabão etc.), não entra no cálculo do que cada mensalista paga no mês seguinte.</p>
+  <p style="margin:0 14px 14px;font-size:11.5px;color:#7C8C7F;line-height:1.4;">Mensalistas e avulsos entram juntos na mesma conta pra cobrir o custo do campo. A sobra do mês é só informativa — ela não entra sozinha no caixa; se quiser guardá-la, lance manualmente em "Outra entrada" abaixo.</p>
   ${organizerMode ? `
   <div class="section-title" style="margin:0 14px 8px;"><span>Registrar movimentação</span></div>
   <div class="caixa-actions">
@@ -929,7 +894,6 @@ function removeMember(id){
     delete payments[id];
     await saveMembers();
     await savePayments();
-    await syncAutoSobraAndSave();
     render();
   });
 }
@@ -940,7 +904,6 @@ async function togglePaid(id, evt){
   const willPay = !(current && current.paid);
   if(willPay){ payments[id] = { paid: true, date: Date.now() }; } else{ delete payments[id]; }
   await savePayments();
-  await syncAutoSobraAndSave();
   if(evt && willPay){ const r = evt.target.getBoundingClientRect(); celebrate(r.left + r.width/2, r.top, '⚽'); }
   render();
 }
@@ -957,7 +920,6 @@ async function onSaveSettings(){
   config.avulsoValue = av;
   config.courtCost = cc;
   await saveConfig();
-  await syncAutoSobraAndSave();
   render();
   showToast('Ajustes salvos.');
 }
@@ -988,7 +950,6 @@ async function onAddAvulso(){
   if(!name) return;
   avulsos.push({ id: uid(), name, valor: config.avulsoValue, date: Date.now() });
   await saveAvulsos();
-  await syncAutoSobraAndSave();
   render();
   showToast(name + ' registrado como avulso.');
 }
@@ -997,7 +958,6 @@ async function removeAvulso(id){
   if(!isCurrentMonth()) return;
   avulsos = avulsos.filter(a => a.id !== id);
   await saveAvulsos();
-  await syncAutoSobraAndSave();
   render();
 }
 
