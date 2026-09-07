@@ -584,10 +584,10 @@ function caixaTabHTML(){
     ? `<div class="ledger-empty">Nenhuma movimentação registrada ainda.</div>`
     : entries.map(e => `
       <div class="ledger-item">
-        <div class="ledger-desc"><b>${escapeHTML(e.desc)}</b><small>${fmtDate(new Date(e.date))}${e.auto ? ' · automático' : ''}</small></div>
+        <div class="ledger-desc"><b>${escapeHTML(e.desc)}</b><small>${fmtDate(new Date(e.date))}${e.auto ? ' · lançamento antigo' : ''}</small></div>
         <div style="display:flex;align-items:center;gap:8px;">
           <div class="ledger-valor ${e.type==='entrada'?'in':'out'}">${e.type==='entrada'?'+':'−'} ${fmtMoney(e.valor)}</div>
-          ${organizerMode && !e.auto ? `
+          ${organizerMode ? `
           <button class="mini-btn" data-action="edit-ledger" data-id="${e.id}" style="background:#232B24;color:var(--chalk);">✏️</button>
           <button class="mini-btn remove" data-action="delete-ledger" data-id="${e.id}">🗑️</button>` : ''}
         </div>
